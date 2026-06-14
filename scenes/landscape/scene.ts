@@ -1,22 +1,22 @@
 import type { Frame } from '../../src/core/frame';
 import type { FrameState, FrameTargets, GpuContext, Scene } from '../../src/core/types';
+import { Sky } from '../../src/features/sky';
 import { Terrain } from '../../src/features/terrain';
 
-// Placeholder background until a sky feature lands (linear HDR, tonemapped on present).
-const SKY_CLEAR = { r: 0.5, g: 0.7, b: 0.95, a: 1 };
-
-// Terrain landscape. Owns pass order; gains sky + grass as features are added.
+// Terrain landscape under a procedural sky. Owns pass order; gains grass etc. later.
 export class LandscapeScene implements Scene {
+  private readonly sky: Sky;
   private readonly terrain: Terrain;
 
   constructor(ctx: GpuContext, frame: Frame) {
+    this.sky = new Sky(ctx, frame);
     this.terrain = new Terrain(ctx, frame);
   }
 
   encode(encoder: GPUCommandEncoder, _frame: FrameState, targets: FrameTargets): void {
     const pass = encoder.beginRenderPass({
-      label: 'terrain',
-      colorAttachments: [{ view: targets.color, loadOp: 'clear', storeOp: 'store', clearValue: SKY_CLEAR }],
+      label: 'landscape',
+      colorAttachments: [{ view: targets.color, loadOp: 'clear', storeOp: 'store', clearValue: { r: 0, g: 0, b: 0, a: 1 } }],
       depthStencilAttachment: {
         view: targets.depth,
         depthLoadOp: 'clear',
@@ -24,7 +24,8 @@ export class LandscapeScene implements Scene {
         depthStoreOp: 'store',
       },
     });
-    this.terrain.draw(pass);
+    this.sky.draw(pass); // background — no depth write
+    this.terrain.draw(pass); // geometry over sky — depth tested
     pass.end();
   }
 }

@@ -94,6 +94,7 @@ ${FRAME_WGSL}
 struct VsOut {
   @builtin(position) clip : vec4f,
   @location(0) normal : vec3f,
+  @location(1) height : f32,
 };
 
 @vertex
@@ -101,16 +102,35 @@ fn vs(@location(0) pos : vec3f, @location(1) normal : vec3f) -> VsOut {
   var o : VsOut;
   o.clip = frame.viewProj * vec4f(pos, 1.0);
   o.normal = normal;
+  o.height = pos.y;
   return o;
 }
 
 @fragment
 fn fs(in : VsOut) -> @location(0) vec4f {
   let n = normalize(in.normal);
+  let slope = 1.0 - n.y; // 0 = flat, → 1 = vertical face
+
+  // height/slope-based albedo: grass on gentle low ground, rock on steep faces, snow on peaks
+  let grass = vec3f(0.20, 0.34, 0.13);
+  let rock = vec3f(0.30, 0.27, 0.24);
+  let snow = vec3f(0.90, 0.92, 0.96);
+  var albedo = mix(grass, rock, smoothstep(0.25, 0.55, slope));
+  let snowLine = smoothstep(2.5, 4.5, in.height) * (1.0 - smoothstep(0.45, 0.75, slope));
+  albedo = mix(albedo, snow, snowLine);
+
+  // direct sun — warm, matches the sky's sun color
+  let sunCol = vec3f(1.0, 0.95, 0.85);
   let ndl = max(dot(n, frame.sunDir), 0.0);
-  let albedo = vec3f(0.3, 0.45, 0.2);
-  let lit = albedo * (ndl * frame.sunIntensity + 0.15); // diffuse + flat ambient
-  return vec4f(lit, 1.0);
+  let direct = sunCol * (ndl * frame.sunIntensity);
+
+  // hemispheric sky ambient: sky color from above, dim ground bounce from below
+  let skyAmbient = vec3f(0.45, 0.55, 0.72);
+  let groundAmbient = vec3f(0.18, 0.16, 0.13);
+  let ambient = mix(groundAmbient, skyAmbient, n.y * 0.5 + 0.5);
+
+  let color = albedo * (direct + ambient);
+  return vec4f(color, 1.0);
 }
 `;
 

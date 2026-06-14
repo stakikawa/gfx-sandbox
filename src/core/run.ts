@@ -48,7 +48,7 @@ export async function runScene(selector: string, create: CreateScene): Promise<v
       cameraPos: camera.position(),
       time,
       resolution: [el.width, el.height],
-      sunDir: vec3.normalize(vec3.create(0.3, 0.8, 0.4)),
+      sunDir: vec3.normalize(vec3.create(0.3, 0.5, 0.4)),
       sunIntensity: 1,
     };
     frame.update(state);
