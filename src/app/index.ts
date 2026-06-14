@@ -52,7 +52,7 @@ function render(): void {
   frame.update(state);
 
   const encoder = renderer.ctx.device.createCommandEncoder();
-  scene.encode(encoder, state, { color: renderer.hdrView });
+  scene.encode(encoder, state, { color: renderer.hdrView, depth: renderer.depthView });
   present.encode(encoder, renderer.hdrView, renderer.presentView);
   renderer.ctx.device.queue.submit([encoder.finish()]);
 

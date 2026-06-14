@@ -1,13 +1,16 @@
 import type { GpuContext } from './types';
 
 const HDR_FORMAT: GPUTextureFormat = 'rgba16float';
+const DEPTH_FORMAT: GPUTextureFormat = 'depth24plus';
 
 // Owns the device, swapchain, and all screen-sized targets; recreates them on resize.
 export class Renderer {
   readonly ctx: GpuContext;
   hdrView!: GPUTextureView;
+  depthView!: GPUTextureView;
   private readonly context: GPUCanvasContext;
   private hdr!: GPUTexture;
+  private depth!: GPUTexture;
 
   private constructor(ctx: GpuContext, context: GPUCanvasContext) {
     this.ctx = ctx;
@@ -26,7 +29,10 @@ export class Renderer {
     const presentFormat = navigator.gpu.getPreferredCanvasFormat();
     context.configure({ device, format: presentFormat, alphaMode: 'opaque' });
 
-    return new Renderer({ device, canvas, presentFormat, hdrFormat: HDR_FORMAT }, context);
+    return new Renderer(
+      { device, canvas, presentFormat, hdrFormat: HDR_FORMAT, depthFormat: DEPTH_FORMAT },
+      context,
+    );
   }
 
   // View of the current swapchain image. Call once per frame.
@@ -53,5 +59,14 @@ export class Renderer {
       usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING,
     });
     this.hdrView = this.hdr.createView();
+
+    this.depth?.destroy();
+    this.depth = device.createTexture({
+      label: 'depth-target',
+      size: [w, h],
+      format: this.ctx.depthFormat,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT,
+    });
+    this.depthView = this.depth.createView();
   }
 }
