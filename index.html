@@ -5,21 +5,52 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Rendering Sandbox</title>
     <style>
-      html,
       body {
         margin: 0;
-        height: 100%;
-        background: #000;
+        min-height: 100vh;
+        background: #0b0d12;
+        color: #e6e9ef;
+        font: 16px/1.5 system-ui, sans-serif;
+        display: grid;
+        place-items: center;
       }
-      canvas {
+      main {
+        width: min(560px, 90vw);
+        padding: 2rem 0;
+      }
+      h1 {
+        font-weight: 600;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        display: grid;
+        gap: 0.75rem;
+      }
+      a {
         display: block;
-        width: 100vw;
-        height: 100vh;
+        padding: 1rem 1.25rem;
+        border: 1px solid #232838;
+        border-radius: 10px;
+        color: inherit;
+        text-decoration: none;
+        background: #11141c;
+      }
+      a:hover {
+        border-color: #3a4a66;
+      }
+      .sub {
+        opacity: 0.6;
       }
     </style>
   </head>
   <body>
-    <canvas id="app"></canvas>
-    <script type="module" src="/src/app/index.ts"></script>
+    <main>
+      <h1>Rendering Sandbox</h1>
+      <ul>
+        <li><a href="./scenes/landscape/">Landscape <span class="sub">— heightmap terrain</span></a></li>
+        <li><a href="./scenes/hello/">Hello Triangle <span class="sub">— pipeline test</span></a></li>
+      </ul>
+    </main>
   </body>
 </html>

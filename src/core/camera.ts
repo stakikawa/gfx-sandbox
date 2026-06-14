@@ -6,12 +6,12 @@ const UP = vec3.create(0, 1, 0);
 // Perspective camera orbiting a target: drag to rotate, wheel to zoom.
 export class OrbitCamera {
   target = vec3.create(0, 0, 0);
-  distance = 32;
+  distance = 4;
   yaw = 0.7;
-  pitch = 0.45;
+  pitch = 0.3;
   fov = Math.PI / 3;
   near = 0.1;
-  far = 200;
+  far = 100;
   private dragging = false;
 
   constructor(canvas: HTMLCanvasElement) {

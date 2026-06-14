@@ -1,6 +1,6 @@
-import type { Frame } from '../core/frame';
-import type { FrameState, FrameTargets, GpuContext, Scene } from '../core/types';
-import { Terrain } from '../features/terrain';
+import type { Frame } from '../../src/core/frame';
+import type { FrameState, FrameTargets, GpuContext, Scene } from '../../src/core/types';
+import { Terrain } from '../../src/features/terrain';
 
 // Placeholder background until a sky feature lands (linear HDR, tonemapped on present).
 const SKY_CLEAR = { r: 0.5, g: 0.7, b: 0.95, a: 1 };

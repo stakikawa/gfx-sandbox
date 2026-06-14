@@ -1,5 +1,5 @@
-import { FRAME_WGSL, type Frame } from '../core/frame';
-import type { FrameState, FrameTargets, GpuContext, Scene } from '../core/types';
+import { FRAME_WGSL, type Frame } from '../../src/core/frame';
+import type { FrameState, FrameTargets, GpuContext, Scene } from '../../src/core/types';
 
 const SHADER = /* wgsl */ `
 ${FRAME_WGSL}
