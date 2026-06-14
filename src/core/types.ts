@@ -21,6 +21,7 @@ export interface FrameState {
   resolution: [number, number];
   sunDir: Vec3;
   sunIntensity: number;
+  sunViewProj: Mat4; // orthographic light view-projection for the shadow map
 }
 
 // Render targets core hands the scene each frame.

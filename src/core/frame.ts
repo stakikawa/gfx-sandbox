@@ -16,10 +16,11 @@ struct Frame {
   _pad0 : f32,
   sunDir : vec3<f32>,
   _pad1 : f32,
+  sunViewProj : mat4x4<f32>,
 };
 `;
 
-const FLOATS = 92; // 368 bytes, std140 layout matching FRAME_WGSL
+const FLOATS = 108; // 432 bytes, std140 layout matching FRAME_WGSL
 
 // The shared group-0 frame uniform buffer plus its bind group.
 export class Frame {
@@ -64,6 +65,7 @@ export class Frame {
     d[85] = s.resolution[1];
     d[86] = s.sunIntensity;
     d.set(s.sunDir, 88);
+    d.set(s.sunViewProj, 92);
     this.device.queue.writeBuffer(this.buffer, 0, d);
   }
 }

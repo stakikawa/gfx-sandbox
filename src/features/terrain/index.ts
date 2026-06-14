@@ -1,4 +1,5 @@
 import { FRAME_WGSL, type Frame } from '../../core/frame';
+import { Shadow } from '../../core/shadow';
 import type { GpuContext } from '../../core/types';
 
 const N = 200; // grid cells per side
@@ -119,11 +120,15 @@ struct Debug {
 };
 @group(1) @binding(0) var<uniform> dbg : Debug;
 
+@group(2) @binding(0) var shadowMap : texture_depth_2d;
+@group(2) @binding(1) var shadowSamp : sampler_comparison;
+
 struct VsOut {
   @builtin(position) clip : vec4f,
   @location(0) normal : vec3f,
   @location(1) height : f32,
   @location(2) ao : f32,
+  @location(3) worldPos : vec3f,
 };
 
 @vertex
@@ -133,7 +138,34 @@ fn vs(@location(0) pos : vec3f, @location(1) normal : vec3f, @location(2) ao : f
   o.normal = normal;
   o.height = pos.y;
   o.ao = ao;
+  o.worldPos = pos;
   return o;
+}
+
+// Depth-only stage that renders the terrain from the sun into the shadow map.
+@vertex
+fn vsShadow(@location(0) pos : vec3f) -> @builtin(position) vec4f {
+  return frame.sunViewProj * vec4f(pos, 1.0);
+}
+
+// PCF sun-shadow lookup. 1 = lit, 0 = fully shadowed.
+fn shadowFactor(worldPos : vec3f) -> f32 {
+  let lc = frame.sunViewProj * vec4f(worldPos, 1.0);
+  let proj = lc.xyz / lc.w;
+  let uv = vec2f(proj.x * 0.5 + 0.5, proj.y * -0.5 + 0.5);
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0 || proj.z > 1.0) {
+    return 1.0; // outside the shadow map → treat as lit
+  }
+  let compareDepth = proj.z - 0.0015; // depth bias against acne
+  let texel = 1.0 / f32(${Shadow.size});
+  var sum = 0.0;
+  for (var dy = -1; dy <= 1; dy++) {
+    for (var dx = -1; dx <= 1; dx++) {
+      let off = vec2f(f32(dx), f32(dy)) * texel;
+      sum += textureSampleCompareLevel(shadowMap, shadowSamp, uv + off, compareDepth);
+    }
+  }
+  return sum / 9.0;
 }
 
 @fragment
@@ -152,7 +184,7 @@ fn fs(in : VsOut) -> @location(0) vec4f {
   // direct sun — warm, matches the sky's sun color
   let sunCol = vec3f(1.0, 0.95, 0.85);
   let ndl = max(dot(n, frame.sunDir), 0.0);
-  let direct = sunCol * (ndl * frame.sunIntensity);
+  let direct = sunCol * (ndl * frame.sunIntensity) * shadowFactor(in.worldPos);
 
   // hemispheric sky ambient, attenuated by baked occlusion (sky light blocked by terrain)
   let skyAmbient = vec3f(0.45, 0.55, 0.72);
@@ -172,8 +204,10 @@ export class Terrain {
   private readonly indexCount: number;
   private readonly debugBuffer: GPUBuffer;
   private readonly debugBind: GPUBindGroup;
+  private readonly shadowPipeline: GPURenderPipeline;
+  private readonly shadowConsumerBind: GPUBindGroup;
 
-  constructor(ctx: GpuContext, private readonly frame: Frame) {
+  constructor(ctx: GpuContext, private readonly frame: Frame, shadow: Shadow) {
     const { device } = ctx;
     const { vertexData, indexData } = buildMesh();
     this.indexCount = indexData.length;
@@ -216,10 +250,29 @@ export class Terrain {
       }
     });
 
+    // shadow map consumed at group 2: depth texture + comparison sampler
+    const shadowLayout = device.createBindGroupLayout({
+      label: 'terrain-shadow',
+      entries: [
+        { binding: 0, visibility: GPUShaderStage.FRAGMENT, texture: { sampleType: 'depth' } },
+        { binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: { type: 'comparison' } },
+      ],
+    });
+    this.shadowConsumerBind = device.createBindGroup({
+      label: 'terrain-shadow',
+      layout: shadowLayout,
+      entries: [
+        { binding: 0, resource: shadow.depthView },
+        { binding: 1, resource: shadow.sampler },
+      ],
+    });
+
     const module = device.createShaderModule({ label: 'terrain', code: SHADER });
     this.pipeline = device.createRenderPipeline({
       label: 'terrain',
-      layout: device.createPipelineLayout({ bindGroupLayouts: [frame.bindGroupLayout, debugLayout] }),
+      layout: device.createPipelineLayout({
+        bindGroupLayouts: [frame.bindGroupLayout, debugLayout, shadowLayout],
+      }),
       vertex: {
         module,
         entryPoint: 'vs',
@@ -238,12 +291,41 @@ export class Terrain {
       primitive: { topology: 'triangle-list', cullMode: 'none' },
       depthStencil: { format: ctx.depthFormat, depthWriteEnabled: true, depthCompare: 'less' },
     });
+
+    // depth-only pipeline that renders the terrain into the sun's shadow map
+    this.shadowPipeline = device.createRenderPipeline({
+      label: 'terrain-shadow',
+      layout: device.createPipelineLayout({ bindGroupLayouts: [frame.bindGroupLayout] }),
+      vertex: {
+        module,
+        entryPoint: 'vsShadow',
+        buffers: [{ arrayStride: 28, attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x3' }] }],
+      },
+      primitive: { topology: 'triangle-list', cullMode: 'none' },
+      depthStencil: {
+        format: Shadow.format,
+        depthWriteEnabled: true,
+        depthCompare: 'less',
+        depthBias: 2,
+        depthBiasSlopeScale: 3,
+      },
+    });
+  }
+
+  // Render terrain depth from the sun's POV (into Shadow's depth pass).
+  drawShadow(pass: GPURenderPassEncoder): void {
+    pass.setPipeline(this.shadowPipeline);
+    pass.setBindGroup(0, this.frame.bindGroup);
+    pass.setVertexBuffer(0, this.vertexBuffer);
+    pass.setIndexBuffer(this.indexBuffer, 'uint32');
+    pass.drawIndexed(this.indexCount);
   }
 
   draw(pass: GPURenderPassEncoder): void {
     pass.setPipeline(this.pipeline);
     pass.setBindGroup(0, this.frame.bindGroup);
     pass.setBindGroup(1, this.debugBind);
+    pass.setBindGroup(2, this.shadowConsumerBind);
     pass.setVertexBuffer(0, this.vertexBuffer);
     pass.setIndexBuffer(this.indexBuffer, 'uint32');
     pass.drawIndexed(this.indexCount);
