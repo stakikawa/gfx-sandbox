@@ -4,7 +4,7 @@ import { Renderer } from '../core/device';
 import { Frame } from '../core/frame';
 import { Present } from '../core/present';
 import type { FrameState } from '../core/types';
-import { HelloScene } from '../scenes/hello';
+import { LandscapeScene } from '../scenes/landscape';
 
 // Application entry point: wires core + the hello scene and drives the render loop.
 
@@ -25,7 +25,7 @@ const el: HTMLCanvasElement = canvas;
 const renderer = await Renderer.create(el);
 const camera = new OrbitCamera(el);
 const frame = new Frame(renderer.ctx.device);
-const scene = new HelloScene(renderer.ctx, frame);
+const scene = new LandscapeScene(renderer.ctx, frame);
 const present = new Present(renderer.ctx);
 
 window.addEventListener('resize', () => renderer.resize());
