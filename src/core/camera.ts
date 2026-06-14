@@ -3,7 +3,7 @@ import type { Mat4, Vec3 } from 'wgpu-matrix';
 
 const UP = vec3.create(0, 1, 0);
 
-// Perspective camera orbiting a target: drag to rotate, wheel to zoom.
+// Perspective camera orbiting a target: drag to rotate, ctrl-drag to pan, wheel to zoom.
 export class OrbitCamera {
   target = vec3.create(0, 0, 0);
   distance = 4;
@@ -14,7 +14,7 @@ export class OrbitCamera {
   far = 100;
   private dragging = false;
 
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(private readonly canvas: HTMLCanvasElement) {
     canvas.addEventListener('pointerdown', (e) => {
       this.dragging = true;
       canvas.setPointerCapture(e.pointerId);
@@ -25,11 +25,17 @@ export class OrbitCamera {
     });
     canvas.addEventListener('pointermove', (e) => {
       if (!this.dragging) return;
+      if (e.ctrlKey) {
+        this.pan(e.movementX, e.movementY);
+        return;
+      }
       this.yaw += e.movementX * 0.005;
       this.pitch += e.movementY * 0.005;
       const limit = Math.PI / 2 - 0.01;
       this.pitch = Math.max(-limit, Math.min(limit, this.pitch));
     });
+    // ctrl-drag pans, which on macOS is also a secondary-click — suppress the context menu
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener(
       'wheel',
       (e) => {
@@ -38,6 +44,17 @@ export class OrbitCamera {
       },
       { passive: false },
     );
+  }
+
+  // Translate the look-at target across the view plane; world motion tracks the cursor
+  // at the target's depth, so panning feels consistent at any zoom.
+  private pan(dx: number, dy: number): void {
+    const forward = vec3.normalize(vec3.sub(this.target, this.position()));
+    const right = vec3.normalize(vec3.cross(forward, UP));
+    const up = vec3.cross(right, forward);
+    const worldPerPixel = (2 * this.distance * Math.tan(this.fov / 2)) / this.canvas.clientHeight;
+    this.target = vec3.addScaled(this.target, right, -dx * worldPerPixel);
+    this.target = vec3.addScaled(this.target, up, dy * worldPerPixel);
   }
 
   position(): Vec3 {
